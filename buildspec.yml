@@ -1,0 +1,46 @@
+version: 0.2
+
+env:
+  variables:
+    ECR_REGISTRY: "115998231330.dkr.ecr.us-east-1.amazonaws.com"
+    ECR_REPOSITORY: "springboot-app"
+    AWS_DEFAULT_REGION: "us-east-1"
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto11
+    commands:
+      - echo "Installing Docker..."
+      - curl -fsSL https://get.docker.com -o get-docker.sh
+      - sh get-docker.sh
+      - usermod -a -G docker ec2-user || true
+      - docker --version
+
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+      - echo "Preparing to build Docker image..."
+
+  build:
+    commands:
+      - echo "Building Spring Boot application..."
+      - ./mvnw clean package -DskipTests
+      - echo "Building Docker image..."
+      - docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+      - docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+  post_build:
+    commands:
+      - echo "Pushing Docker image to ECR..."
+      - docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      - echo "Creating image definitions file for ECS deployment..."
+      - printf '{"ImageURI":"%s/%s:%s"}' $ECR_REGISTRY $ECR_REPOSITORY $IMAGE_TAG > imagedefinitions.json
+      - echo "Build completed successfully!"
+
+artifacts:
+  files:
+    - imagedefinitions.json
