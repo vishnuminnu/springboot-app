@@ -1,6 +1,16 @@
 version: 0.2
 
 phases:
+  install:
+    runtime-versions:
+      java: corretto11
+    commands:
+      - echo "Installing Docker..."
+      - curl -fsSL https://get.docker.com -o get-docker.sh
+      - sh get-docker.sh
+      - usermod -a -G docker ec2-user || true
+      - docker --version
+
   pre_build:
     commands:
       - echo "Logging in to Amazon ECR..."
@@ -14,7 +24,7 @@ phases:
 
   build:
     commands:
-      - echo "Build started on `date`"
+      - echo "Build started on $(date)"
       - echo "Building Spring Boot application..."
       - ./mvnw clean package -DskipTests
       - echo "Building Docker image..."
@@ -23,12 +33,12 @@ phases:
 
   post_build:
     commands:
-      - echo "Build completed on `date`"
+      - echo "Build completed on $(date)"
       - echo "Pushing Docker images..."
       - docker push 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:$IMAGE_TAG
       - docker push 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:latest
       - echo "Creating image definitions file for ECS..."
-      - printf '[{"name":"springboot-app","imageUri":"%s"}]' 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:$IMAGE_TAG > imagedefinitions.json
+      - printf '[{"name":"springboot-app","imageUri":"115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:%s"}]' "$IMAGE_TAG" > imagedefinitions.json
 
 artifacts:
   files: imagedefinitions.json
