@@ -5,42 +5,50 @@ env:
     ECR_REGISTRY: "115998231330.dkr.ecr.us-east-1.amazonaws.com"
     ECR_REPOSITORY: "springboot-app"
     AWS_DEFAULT_REGION: "us-east-1"
+    DOCKERFILE_PATH: "."  # Assuming Dockerfile is in root
 
 phases:
   install:
     runtime-versions:
       java: corretto11
     commands:
-      - echo "Installing Docker..."
-      - curl -fsSL https://get.docker.com -o get-docker.sh
-      - sh get-docker.sh
-      - usermod -a -G docker ec2-user || true
+      - echo "Checking Docker installation..."
+      - if ! command -v docker &> /dev/null; then
+          echo "Installing Docker...";
+          curl -fsSL https://get.docker.com -o get-docker.sh;
+          sh get-docker.sh;
+          usermod -a -G docker ec2-user || true;
+        fi
       - docker --version
+      - echo "Java version:"
+      - java -version
 
   pre_build:
     commands:
-      - echo "Logging in to Amazon ECR..."
-      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+      - echo "Authenticating with ECR..."
+      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 115998231330.dkr.ecr.us-east-1.amazonaws.com
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=${COMMIT_HASH:=latest}
-      - echo "Preparing to build Docker image..."
+      - echo "Using Dockerfile from: $DOCKERFILE_PATH/Dockerfile"
+      - ls -la $DOCKERFILE_PATH/Dockerfile || { echo "Dockerfile not found!"; exit 1; }
 
   build:
     commands:
       - echo "Building Spring Boot application..."
       - ./mvnw clean package -DskipTests
-      - echo "Building Docker image..."
-      - docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+      - echo "Building Docker image from $DOCKERFILE_PATH/Dockerfile..."
+      - docker build -t $ECR_REPOSITORY:$IMAGE_TAG -f $DOCKERFILE_PATH/Dockerfile $DOCKERFILE_PATH
       - docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
   post_build:
     commands:
-      - echo "Pushing Docker image to ECR..."
+      - echo "Pushing image to ECR..."
       - docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-      - echo "Creating image definitions file for ECS deployment..."
+      - echo "Creating ECS deployment artifacts..."
       - printf '{"ImageURI":"%s/%s:%s"}' $ECR_REGISTRY $ECR_REPOSITORY $IMAGE_TAG > imagedefinitions.json
-      - echo "Build completed successfully!"
+      - echo "Build successful. Image URI: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
 artifacts:
   files:
     - imagedefinitions.json
+  name: build_artifacts_$(date +%Y-%m-%d_%H-%M-%S)
