@@ -29,7 +29,7 @@ phases:
       - echo "Pushing Docker image..."
       - docker push 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:$IMAGE_TAG
       - docker push 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:latest
-      - printf '[{"name":"springboot-app","imageUri":"%s"}]' 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:$IMAGE_TAG > imagedefinitions.json
+      - printf '[{"name":"spring-boot","imageUri":"%s"}]' 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:$IMAGE_TAG > imagedefinitions.json
 
 artifacts:
   files: imagedefinitions.json
