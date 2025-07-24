@@ -5,33 +5,31 @@ phases:
     runtime-versions:
       java: corretto11
     commands:
-      - echo "Installing Docker..."
-      - curl -fsSL https://get.docker.com -o get-docker.sh
-      - sh get-docker.sh
-      - usermod -a -G docker ec2-user || true
-      - docker --version
+      - echo "Installing dependencies..."
+      - apt-get update -y && apt-get install -y maven
+      - mvn --version
 
   pre_build:
     commands:
       - echo "Logging in to Amazon ECR..."
-      - aws --version
       - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 115998231330.dkr.ecr.us-east-1.amazonaws.com
-      - aws ecr describe-repositories --repository-names springboot-app || aws ecr create-repository --repository-name springboot-app
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=${COMMIT_HASH:=latest}
 
   build:
     commands:
       - echo "Building Spring Boot application..."
-      - ./mvnw clean package -DskipTests
+      - mvn clean package -DskipTests
+      - echo "Building Docker image..."
       - docker build -t 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:$IMAGE_TAG .
       - docker tag 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:$IMAGE_TAG 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:latest
 
   post_build:
     commands:
+      - echo "Pushing Docker image..."
       - docker push 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:$IMAGE_TAG
       - docker push 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:latest
-      - printf '[{"name":"springboot-app","imageUri":"115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:%s"}]' $IMAGE_TAG > imagedefinitions.json
+      - printf '[{"name":"springboot-app","imageUri":"%s"}]' 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:$IMAGE_TAG > imagedefinitions.json
 
 artifacts:
   files: imagedefinitions.json
