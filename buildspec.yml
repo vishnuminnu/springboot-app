@@ -37,8 +37,9 @@ phases:
       - echo "Pushing Docker images..."
       - docker push 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:$IMAGE_TAG
       - docker push 115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:latest
-      - echo "Creating image definitions file for ECS..."
+      - echo "Creating image definitions file..."
       - printf '[{"name":"springboot-app","imageUri":"115998231330.dkr.ecr.us-east-1.amazonaws.com/springboot-app:%s"}]' "$IMAGE_TAG" > imagedefinitions.json
 
 artifacts:
-  files: imagedefinitions.json
+  files: 
+    - imagedefinitions.json
